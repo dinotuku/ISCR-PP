@@ -2,64 +2,113 @@
 # -*- coding: utf-8 -*-
 
 """
-Parse SQuAD Dataset
+Parse SQuAD Dataset (New Method)
 """
 
 import json
 import os
+import pickle
 import re
 import string
+import sys
 
-os.system('mkdir data/train')
-os.system('rm -rf data/train/doc')
-os.system('rm -rf data/train/query')
-os.system('mkdir data/train/doc')
-os.system('mkdir data/train/query')
+import ipdb
+import numpy as np
+from sklearn import feature_extraction
+from sklearn.feature_extraction.text import TfidfTransformer
+from sklearn.feature_extraction.text import CountVectorizer
+
+name = sys.argv[1]
+lower_limit = int(name.split('_')[0])
+upper_limit = int(name.split('_')[1])
+
+os.system("rm -rf data/{}".format(name))
+os.system("mkdir -p data/{}".format(name))
+os.system("mkdir data/{}/doc".format(name))
+os.system("mkdir data/{}/query".format(name))
 
 data = json.load(open('data/spoken_train-v1.1.json'))['data']
+regex = re.compile("[%s]" % re.escape(string.punctuation))
+split_regex = re.compile("[%s]" % re.escape(string.punctuation.replace('.', '')))
+split_docs = []
+tmp_docs = []
+
+for doc in data:
+    paragraphs = doc['paragraphs']
+    for paragraph in paragraphs:
+        context = paragraph['context'].lower()
+        split_context = split_regex.sub('', context)
+        split_context = context.replace('. ', '\n')
+        context = regex.sub('', context)
+        tmp_docs.append(context)
+        split_docs.append(split_context)
+
+print(len(tmp_docs), 'docs')
+
+def tokenizer(text):
+    return text.split()
+
+vectorizer = CountVectorizer(tokenizer=tokenizer)
+transformer = TfidfTransformer()
+tfidf = transformer.fit_transform(vectorizer.fit_transform(tmp_docs))
+words = vectorizer.get_feature_names()
+weights = tfidf.toarray()
+
+# ipdb.set_trace()
+
+tmp_queries = []
+
+for i in range(len(weights)):
+    doc_weights = weights[i]
+    sort_idx = np.argsort(doc_weights)[::-1]
+    tmp_queries.append([])
+    for j in range(5):
+        tmp_queries[-1].append(words[sort_idx[j]])
+
+tmp_queries_dict = {}
+
+for idx, queries in enumerate(tmp_queries):
+    for query in queries:
+        if query not in tmp_queries_dict:
+            tmp_queries_dict[query] = [[idx], 0]
+        else:
+            tmp_queries_dict[query][0].append(idx)
+            tmp_queries_dict[query][1] += 1
 
 docs = []
 queries = []
 queries_ans = []
+tfidf_array = []
 
-doc_count = 0
-query_count = 0
-id_not_want = [1, 5, 23, 24, 187, 260, 309, 359, 409, 428, 432]
+for query, lst in tmp_queries_dict.items():
+    idx_list = lst[0]
+    count = lst[1]
+    if count >= lower_limit and count <= upper_limit:
+        queries.append(query)
+        for idx in idx_list:
+            if split_docs[idx] not in docs:
+                docs.append(split_docs[idx])
+                tfidf_array.append(weights[idx])
+            queries_ans.append((len(queries) - 1, docs.index(split_docs[idx])))
 
-for i, doc in enumerate(data):
-    if i in id_not_want:
-        continue
-    else:
-        title = doc['title'].lower().replace('_', ' ')
-        paragraphs = doc['paragraphs']
-        docs.append([])
-        queries.append(title)
-        queries_ans.append([])
-        for paragraph in paragraphs:
-            context = paragraph['context'].lower().replace('. ', '\n')
-            if title in context:
-                queries_ans[query_count].append(doc_count)
-                docs[query_count].append(context)
-                doc_count += 1
+print(len(docs), 'docs')
+print(len(queries), 'queries')
+print(len(queries_ans), 'pairs')
 
-        if (len(queries_ans[query_count]) < 5):
-            doc_count -= len(queries_ans[query_count])
-            queries.pop()
-            queries_ans.pop()
-            docs.pop()
-        else:
-            query_count += 1
+for idx, doc in enumerate(docs):
+    with open("data/{}/doc/T{}".format(name, idx), 'w') as f:
+        f.write(doc)
 
-for query_id, doc_id_list in enumerate(queries_ans):
-    for idx, doc in enumerate(docs[query_id]):
-        with open("data/train/doc/T{}".format(doc_id_list[idx]), 'w') as f:
-            f.write(doc)
-
-with open('data/train/query/SQuAD.query', 'w') as f:
+with open("data/{}/query/SQuAD.query".format(name), 'w') as f:
     for query in queries:
         f.write("{}\n".format(query))
 
-with open('data/train/query/SQuAD.ans', 'w') as f:
-    for query_id, doc_id_list in enumerate(queries_ans):
-        for doc_id in doc_id_list:
-            f.write("{} {}\n".format(query_id, doc_id))
+with open("data/{}/query/SQuAD.ans".format(name), 'w') as f:
+    for query_id, doc_id in queries_ans:
+        f.write("{} {}\n".format(query_id, doc_id))
+
+with open("data/{}/words.pkl".format(name), 'wb') as f:
+    pickle.dump(words, f, protocol=2)
+
+with open("data/{}/tfidf.pkl".format(name), 'wb') as f:
+    pickle.dump(tfidf_array, f, protocol=2)
