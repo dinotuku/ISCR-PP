@@ -11,7 +11,6 @@ import pickle
 import re
 import sys
 
-import ipdb
 import numpy as np
 from sklearn import feature_extraction
 from sklearn.feature_extraction.text import TfidfTransformer
@@ -153,9 +152,6 @@ def run_transcript2docmodel(query_utf8_file, transcript_dir, lex_file,
                         fout.write('{} {}\n'.format(k, v))
     else:
         print("Document models have already been written to {}".format(save_docmodel_dir))
-
-    sorted_docmodel_keys = sorted(docmodels.keys())
-    ipdb.set_trace()
 
     # Write background file
     if not os.path.exists(background_file):
