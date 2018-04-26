@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Parse SQuAD Dataset (New Method)
+Parse SQuAD Dataset
 """
 
 import json

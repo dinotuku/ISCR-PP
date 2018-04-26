@@ -1,5 +1,9 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-c
+# -*- coding: utf-8 -*-
+
+"""
+Preprocessing of docmodel
+"""
 
 import codecs
 from collections import defaultdict
