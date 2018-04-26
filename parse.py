@@ -96,7 +96,7 @@ print(len(queries), 'queries')
 print(len(queries_ans), 'pairs')
 
 for idx, doc in enumerate(docs):
-    with open("data/{}/doc/T{}".format(name, idx), 'w') as f:
+    with open("data/{}/doc/T{:05d}".format(name, idx), 'w') as f:
         f.write(doc)
 
 with open("data/{}/query/SQuAD.query".format(name), 'w') as f:
