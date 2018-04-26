@@ -12,13 +12,8 @@ import math
 import operator
 import os
 import pickle
-import re
 import sys
 
-import numpy as np
-from sklearn import feature_extraction
-from sklearn.feature_extraction.text import TfidfTransformer
-from sklearn.feature_extraction.text import CountVectorizer
 from tqdm import tqdm
 
 from util import readInvIndex, readCleanInvIndex, readDocLength, readDocModel
@@ -60,26 +55,26 @@ def run_transcript2docmodel(query_utf8_file, transcript_dir, lex_file,
             # Read transcription
             with open(doc_path, 'r') as f:
                 text = f.read()
-                uni_text = text
-                cut_uni_text = uni_text.split()
+                cut_text = text.split()
 
-                for ph in cut_uni_text:
+                for ph in cut_text:
                     lex_key = utf8_to_brackethex(ph)
                     if lex_key not in lex_dict:
                         lex_dict[lex_key] = lex_idx
                         lex_idx += 1
 
         with open(lex_file, 'w') as f:
-            for lex_key in lex_dict.keys():
-                f.write("{}\n".format(lex_key))
+            for lex_key, lex_idx in lex_dict.items():
+                f.write("{} {}\n".format(lex_key, lex_idx))
 
         print("lex built")
     else:
         print("lex file already exists at {}".format(lex_file))
         lex_dict = {}
         with open(lex_file, 'r') as fin:
-            for idx, line in enumerate(fin.readlines(), 1):
-                lex = line.strip()
+            for line in fin.readlines():
+                lex = line.strip().split()[0]
+                idx = int(line.strip().split()[1])
                 lex_dict[lex] = idx
 
     #######################
@@ -89,6 +84,10 @@ def run_transcript2docmodel(query_utf8_file, transcript_dir, lex_file,
         words = pickle.load(f)
     with open("data/{}/tfidf.pkl".format(sys.argv[1]), 'rb') as f:
         tfidf = pickle.load(f)
+
+    inv_words = {}
+    for idx, word in enumerate(words):
+        inv_words[word] = idx
 
     #######################
     #   Language Models   #
@@ -108,20 +107,19 @@ def run_transcript2docmodel(query_utf8_file, transcript_dir, lex_file,
             # Read transcription
             with open(doc_path, 'r') as f:
                 text = f.read()
-                uni_text = text
-                cut_uni_text = uni_text.split()
+                cut_text = text.split()
 
-                doclength_dict[docname] = len(cut_uni_text)
+                doclength_dict[docname] = len(cut_text)
 
                 # Unicode to bracket big5 hex
-                for word in cut_uni_text:
+                for word in cut_text:
                     # To big5 hex
                     bracketed_chars = utf8_to_brackethex(word)
 
                     if bracketed_chars in lex_dict:
                         lex_index = lex_dict[bracketed_chars]
                         # docmodels[docname][lex_index] += 1.
-                        docmodels[docname][lex_index] = tfidf[doc_index][words.index(word)]
+                        docmodels[docname][lex_index] = tfidf[doc_index][inv_words[word]]
 
                 # Normalize docmodel
                 # factor = 1. / sum(docmodels[docname].values())
@@ -161,7 +159,10 @@ def run_transcript2docmodel(query_utf8_file, transcript_dir, lex_file,
             for lex_key, lex_idx in tqdm(lex_dict.items()):
                 prob = 0.
                 for docname, model in docmodels.items():
-                    prob += model.get(lex_idx, 0.)
+                    if lex_idx in model:
+                        prob += model[lex_idx]
+                    else:
+                        prob += 0
                 prob /= ndocuments
                 f.write('{} {}\n'.format(lex_key, prob))
     else:
@@ -206,8 +207,9 @@ def run_create_query_pickle(lex_file, query_utf8_file, answer_file, query_pickle
     # Load lex dict
     lex_dict = {}
     with open(lex_file, 'r') as fin:
-        for idx, line in enumerate(fin.readlines(), 1):
-            lex = line.strip()
+        for line in fin.readlines():
+            lex = line.strip().split()[0]
+            idx = int(line.strip().split()[1])
             lex_dict[lex] = idx
 
     # Read query file
@@ -279,21 +281,16 @@ def run_create_keyterms(inv_index_file, keyterm_dir):
         inv_index = readCleanInvIndex(inv_index_file)
 
         for term1 in tqdm(inv_index.keys()):
-
             set1 = set(inv_index[term1])
-
             jaccard = {}
-
             for term2, _ in inv_index.items():
                 if term1 == term2:
                     continue
 
                 set2 = set(inv_index[term2])
-
                 jaccard[term2] = float(len(set1 & set2)) / len(set1 | set2)
 
             listToPrint = sorted(jaccard.items(), key=operator.itemgetter(1), reverse=True)
-
             outfile = os.path.join(keyterm_dir, str(term1))
             with open(outfile, 'w') as fout:
                 for term, val in listToPrint[1:100]:
@@ -339,21 +336,22 @@ def run_create_lda(mallet_binary, docmodel_dir, lda_dir, lex_file):
     # Define here to use later
     topic_words_weight_file = os.path.join(train_dir, 'topic_words_weight_file')
 
-    train_topics_param = {'mallet_bin': mallet_binary,
-                          'input': mallet_file,
-                          'inferencer_filename': os.path.join(train_dir, 'inferencer.model'),
-                          'output_model': os.path.join(train_dir, 'output_model.binary'),
-                          'output_state': os.path.join(train_dir, 'output_state.gz'),
-                          'output_topic_keys': os.path.join(train_dir, 'output_topic_keys.txt'),
-                          'topic_words_weight_file': topic_words_weight_file,
-                          'words_topic_counts_file': os.path.join(train_dir, 'words_topic_counts_file.txt'),
-                          'output_doc_topics': os.path.join(train_dir, 'output_doc_topics.txt'),
-                          'num_topics': 128,  # FROM ISDR-CMDP
-                          'num_threads': 4,
-                          'optimize_interval': 20,  # From Mallet Tutorial
-                          'alpha': 1,  # From ISDR-CMDP
-                          'beta': 0.05  # From ISDR-CMDP
-                          }
+    train_topics_param = {
+        'mallet_bin': mallet_binary,
+        'input': mallet_file,
+        'inferencer_filename': os.path.join(train_dir, 'inferencer.model'),
+        'output_model': os.path.join(train_dir, 'output_model.binary'),
+        'output_state': os.path.join(train_dir, 'output_state.gz'),
+        'output_topic_keys': os.path.join(train_dir, 'output_topic_keys.txt'),
+        'topic_words_weight_file': topic_words_weight_file,
+        'words_topic_counts_file': os.path.join(train_dir, 'words_topic_counts_file.txt'),
+        'output_doc_topics': os.path.join(train_dir, 'output_doc_topics.txt'),
+        'num_topics': 128,  # FROM ISDR-CMDP
+        'num_threads': 4,
+        'optimize_interval': 20,  # From Mallet Tutorial
+        'alpha': 1,  # From ISDR-CMDP
+        'beta': 0.05  # From ISDR-CMDP
+    }
 
     if os.path.exists(topic_words_weight_file):
         print("Topic words weight file already exists {}. Skipping...".format(topic_words_weight_file))
@@ -368,8 +366,9 @@ def run_create_lda(mallet_binary, docmodel_dir, lda_dir, lex_file):
     print("Loading lex file")
     lex_dict = {}
     with open(lex_file, 'r') as fin:
-        for idx, line in enumerate(fin.readlines(), 1):
-            lex = line.strip()
+        for line in fin.readlines():
+            lex = line.strip().split()[0]
+            idx = int(line.strip().split()[1])
             lex_dict[lex] = idx
 
     topic_models = defaultdict(dict)
@@ -377,9 +376,7 @@ def run_create_lda(mallet_binary, docmodel_dir, lda_dir, lex_file):
     with codecs.open(topic_words_weight_file, 'r', 'utf-8') as f:
         for line in tqdm(f.readlines()):
             tokens = line.split()
-
             line_filename = tokens[0]
-
             phrase = tokens[1]
             if utf8_to_brackethex(phrase) not in lex_dict:
                 lex_index = len(lex_dict)
@@ -467,28 +464,8 @@ def cut_queries(query_utf8_file, query_utf8_nltk_file):
                 fout.write(cut_line + '\n')
 
 
-def cut_transcript(transcript_dir, nltk_dir):
-    if not os.path.exists(nltk_dir):
-        os.makedirs(nltk_dir)
-        print("Run cutting transcript from {} to {}".format(transcript_dir, nltk_dir))
-        for filepath in tqdm(glob(os.path.join(transcript_dir, '*'))):
-            if os.path.isfile(filepath):
-                with open(filepath, 'r') as f:
-                    text = f.read()
-                    jieba_text = ' '.join(text.split())
-
-                filename = filepath.split('/')[-1]
-
-                with codecs.open(os.path.join(nltk_dir, filename), 'w', 'utf-8') as f:
-                    f.write(jieba_text)
-    else:
-        print("Transcript {} has already been cut to {}".format(transcript_dir, nltk_dir))
-
-
 def utf8_to_brackethex(uni_word):
-
     bracketed_chars = '[' + uni_word + ']'
-
     return bracketed_chars
 
 
@@ -551,8 +528,6 @@ if __name__ == "__main__":
     run_create_keyterms(index_file, keyterm_dir)
 
     lda_dir = os.path.join(lm_dir, 'lda')
-
-    # cut_transcript(transcript_dir, nltk_dir)
 
     run_create_lda(mallet_binary, transcript_dir, lda_dir, lex_file)
 
