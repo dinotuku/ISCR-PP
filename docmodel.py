@@ -108,7 +108,7 @@ def run_transcript2docmodel(query_utf8_file, transcript_dir, lex_file,
                         lex_index = lex_dict[bracketed_chars]
                         docmodels[docname][lex_index] += 1.
 
-                Normalize docmodel
+                # Normalize docmodel
                 factor = 1. / sum(docmodels[docname].values())
                 for k in docmodels[docname].keys():
                     docmodels[docname][k] *= factor
