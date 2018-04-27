@@ -7,7 +7,6 @@ Parse SQuAD Dataset
 
 import json
 import os
-import pickle
 import re
 import string
 import sys
@@ -78,7 +77,6 @@ for idx, queries in enumerate(tmp_queries):
 docs = []
 queries = []
 queries_ans = []
-tfidf_array = []
 
 for query, lst in tmp_queries_dict.items():
     idx_list = lst[0]
@@ -88,7 +86,6 @@ for query, lst in tmp_queries_dict.items():
         for idx in idx_list:
             if split_docs[idx] not in docs:
                 docs.append(split_docs[idx])
-                tfidf_array.append(weights[idx])
             queries_ans.append((len(queries) - 1, docs.index(split_docs[idx])))
 
 print(len(docs), 'docs')
@@ -106,9 +103,3 @@ with open("data/{}/query/SQuAD.query".format(name), 'w') as f:
 with open("data/{}/query/SQuAD.ans".format(name), 'w') as f:
     for query_id, doc_id in queries_ans:
         f.write("{} {}\n".format(query_id, doc_id))
-
-with open("data/{}/words.pkl".format(name), 'wb') as f:
-    pickle.dump(words, f, protocol=2)
-
-with open("data/{}/tfidf.pkl".format(name), 'wb') as f:
-    pickle.dump(tfidf_array, f, protocol=2)

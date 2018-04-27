@@ -78,18 +78,6 @@ def run_transcript2docmodel(query_utf8_file, transcript_dir, lex_file,
                 lex_dict[lex] = idx
 
     #######################
-    #        TFIDF        #
-    #######################
-    with open("data/{}/words.pkl".format(sys.argv[1]), 'rb') as f:
-        words = pickle.load(f)
-    with open("data/{}/tfidf.pkl".format(sys.argv[1]), 'rb') as f:
-        tfidf = pickle.load(f)
-
-    inv_words = {}
-    for idx, word in enumerate(words):
-        inv_words[word] = idx
-
-    #######################
     #   Language Models   #
     #######################
     # All doc lengths in one file
@@ -118,13 +106,12 @@ def run_transcript2docmodel(query_utf8_file, transcript_dir, lex_file,
 
                     if bracketed_chars in lex_dict:
                         lex_index = lex_dict[bracketed_chars]
-                        # docmodels[docname][lex_index] += 1.
-                        docmodels[docname][lex_index] = tfidf[doc_index][inv_words[word]]
+                        docmodels[docname][lex_index] += 1.
 
-                # Normalize docmodel
-                # factor = 1. / sum(docmodels[docname].values())
-                # for k in docmodels[docname].keys():
-                #     docmodels[docname][k] *= factor
+                Normalize docmodel
+                factor = 1. / sum(docmodels[docname].values())
+                for k in docmodels[docname].keys():
+                    docmodels[docname][k] *= factor
 
         with open(docmodels_cache, 'wb') as f:
             obj = (docmodels, doclength_dict)
@@ -346,7 +333,7 @@ def run_create_lda(mallet_binary, docmodel_dir, lda_dir, lex_file):
         'topic_words_weight_file': topic_words_weight_file,
         'words_topic_counts_file': os.path.join(train_dir, 'words_topic_counts_file.txt'),
         'output_doc_topics': os.path.join(train_dir, 'output_doc_topics.txt'),
-        'num_topics': 128,  # FROM ISDR-CMDP
+        'num_topics': 256,  # FROM ISDR-CMDP
         'num_threads': 4,
         'optimize_interval': 20,  # From Mallet Tutorial
         'alpha': 1,  # From ISDR-CMDP
@@ -436,9 +423,9 @@ def run_create_topic_rankings(mallet_binary, query_utf8_nltk_file, lda_dir, topi
             fname = int(tokens[0])
             topic_probs = list(map(float, tokens[2:]))
 
-            assert len(topic_probs) == 128
+            assert len(topic_probs) == 256
 
-            topic_prob_tuples = zip(range(128), topic_probs)
+            topic_prob_tuples = zip(range(256), topic_probs)
             topic_prob_tuples = sorted(topic_prob_tuples, key=lambda x: x[1], reverse=True)
 
             filepath = os.path.join(topic_ranking_dir, str(fname))
