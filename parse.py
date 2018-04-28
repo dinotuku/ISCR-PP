@@ -11,11 +11,7 @@ import re
 import string
 import sys
 
-# import ipdb
 import numpy as np
-from sklearn import feature_extraction
-from sklearn.feature_extraction.text import TfidfTransformer
-from sklearn.feature_extraction.text import CountVectorizer
 
 name = sys.argv[1]
 lower_limit = int(name.split('_')[0])
@@ -27,66 +23,27 @@ os.system("mkdir data/{}/doc".format(name))
 os.system("mkdir data/{}/query".format(name))
 
 data = json.load(open('data/spoken_train-v1.1.json'))['data']
-regex = re.compile("[%s]" % re.escape(string.punctuation))
-split_regex = re.compile("[%s]" % re.escape(string.punctuation.replace('.', '')))
-split_docs = []
-tmp_docs = []
-
-for doc in data:
-    paragraphs = doc['paragraphs']
-    for paragraph in paragraphs:
-        context = paragraph['context'].lower()
-        split_context = split_regex.sub('', context)
-        split_context = context.replace('. ', '\n')
-        context = regex.sub('', context)
-        tmp_docs.append(context)
-        split_docs.append(split_context)
-
-print(len(tmp_docs), 'docs')
-
-def tokenizer(text):
-    return text.split()
-
-vectorizer = CountVectorizer(tokenizer=tokenizer)
-transformer = TfidfTransformer()
-tfidf = transformer.fit_transform(vectorizer.fit_transform(tmp_docs))
-words = vectorizer.get_feature_names()
-weights = tfidf.toarray()
-
-# ipdb.set_trace()
-
-tmp_queries = []
-
-for i in range(len(weights)):
-    doc_weights = weights[i]
-    sort_idx = np.argsort(doc_weights)[::-1]
-    tmp_queries.append([])
-    for j in range(5):
-        tmp_queries[-1].append(words[sort_idx[j]])
-
-tmp_queries_dict = {}
-
-for idx, queries in enumerate(tmp_queries):
-    for query in queries:
-        if query not in tmp_queries_dict:
-            tmp_queries_dict[query] = [[idx], 0]
-        else:
-            tmp_queries_dict[query][0].append(idx)
-            tmp_queries_dict[query][1] += 1
-
+regex = re.compile("[%s]" % re.escape(string.punctuation.replace('.', '')))
 docs = []
 queries = []
 queries_ans = []
+ignored_queries_idx = [1, 5, 23, 135, 187, 192, 260, 309, 433]
 
-for query, lst in tmp_queries_dict.items():
-    idx_list = lst[0]
-    count = lst[1]
-    if count >= lower_limit and count <= upper_limit:
-        queries.append(query)
-        for idx in idx_list:
-            if split_docs[idx] not in docs:
-                docs.append(split_docs[idx])
-            queries_ans.append((len(queries) - 1, docs.index(split_docs[idx])))
+for idx, doc in enumerate(data):
+    paragraphs = doc['paragraphs']
+    if len(paragraphs) > upper_limit or len(paragraphs) < lower_limit:
+        continue
+    title = doc['title']
+    title = regex.sub(' ', title)
+    if idx in ignored_queries_idx:
+        continue
+    queries.append(title)
+    for paragraph in paragraphs:
+        context = paragraph['context'].lower()
+        context = regex.sub('', context)
+        context = context.replace('. ', '\n')
+        docs.append(context)
+        queries_ans.append((len(queries) - 1, len(docs) - 1))
 
 print(len(docs), 'docs')
 print(len(queries), 'queries')

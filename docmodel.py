@@ -365,10 +365,7 @@ def run_create_lda(mallet_binary, docmodel_dir, lda_dir, lex_file):
             tokens = line.split()
             line_filename = tokens[0]
             phrase = tokens[1]
-            if utf8_to_brackethex(phrase) not in lex_dict:
-                lex_index = len(lex_dict)
-            else:
-                lex_index = lex_dict[utf8_to_brackethex(phrase)]
+            lex_index = lex_dict[utf8_to_brackethex(phrase)]
 
             prob = float(tokens[2])
 
