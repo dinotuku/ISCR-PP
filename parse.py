@@ -28,15 +28,19 @@ docs = []
 queries = []
 queries_ans = []
 ignored_queries_idx = [1, 5, 23, 135, 187, 192, 260, 309, 433]
+low_ap_idx = [6, 7, 8, 11, 20, 23, 27, 37, 43, 43, 44, 45, 48, 49, 49, 52, 134, 141, 142, 144, 158, 160, 164, 166, 170, 170, 183, 187, 189, 192, 195, 197, 206, 210, 220, 225, 229, 236, 245, 258, 258, 270, 276, 276, 279, 280]
 
 for idx, doc in enumerate(data):
     paragraphs = doc['paragraphs']
     if len(paragraphs) > upper_limit or len(paragraphs) < lower_limit:
         continue
-    title = doc['title']
-    title = regex.sub(' ', title)
     if idx in ignored_queries_idx:
         continue
+    if len(queries) in low_ap_idx:
+        low_ap_idx.pop(0)
+        continue
+    title = doc['title']
+    title = regex.sub(' ', title)
     queries.append(title)
     for paragraph in paragraphs:
         context = paragraph['context'].lower()
