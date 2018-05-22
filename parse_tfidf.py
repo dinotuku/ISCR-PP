@@ -20,6 +20,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 name = sys.argv[1]
 lower_limit = int(name.split('_')[0])
 upper_limit = int(name.split('_')[1])
+prob = float(name.split('_')[2])
 
 os.system("rm -rf data/{}".format(name))
 os.system("mkdir -p data/{}".format(name))
@@ -82,7 +83,7 @@ for query, lst in tmp_queries_dict.items():
     count = lst[1]
     if count >= lower_limit and count <= upper_limit:
         random_prob = np.random.random()
-        append_or_not = True if random_prob <= .8 else False
+        append_or_not = True if random_prob <= prob else False
         if append_or_not:
             queries.append(query)
         for idx in idx_list:
